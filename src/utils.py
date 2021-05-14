@@ -1,4 +1,7 @@
+import time
 import json
+import sqlite3, pandas as pd
+from pathlib import Path
 from hashlib import sha256
 from collections import Counter
 from inputimeout import inputimeout, TimeoutOccurred
@@ -624,7 +627,7 @@ def get_min_age(beneficiary_dtls):
     return min_age
 
 
-def generate_token_OTP(mobile, request_header):
+def generate_token_OTP(mobile, request_header, unattended = False):
     """
     This function generate OTP and returns a new token
     """
@@ -646,7 +649,11 @@ def generate_token_OTP(mobile, request_header):
                 print(f"Successfully requested OTP for mobile number {mobile} at {datetime.datetime.today()}..")
                 txnId = txnId.json()['txnId']
 
-                OTP = input("Enter OTP (If this takes more than 2 minutes, press Enter to retry): ")
+                if unattended:
+                    OTP = readOTPfromMacOS()
+                else:
+                    OTP = input("Enter OTP (If this takes more than 2 minutes, press Enter to retry): ")
+
                 if OTP:
                     data = {"otp": sha256(str(OTP).encode('utf-8')).hexdigest(), "txnId": txnId}
                     print(f"Validating OTP..")
@@ -684,3 +691,30 @@ def generate_token_OTP(mobile, request_header):
         except Exception as e:
             print(str(e))
 
+def readOTPfromMacOS():
+    """
+    This function reads OTP from iMessage in macOS
+    :return OTP
+    """
+    wait_for_otp = 10
+    for i in range(wait_for_otp, 0, -1):
+        msg = f"Waiting for OTP. Reading OTP in {i} seconds.."
+        print(msg, end="\r", flush=True)
+        sys.stdout.flush()
+        time.sleep(1)
+    home = str(Path.home())
+    conn = sqlite3.connect(home + "/Library/Messages/chat.db")
+    messages = pd.read_sql_query("select * from message order by ROWID desc limit 1", conn)
+    handles = pd.read_sql_query("select * from handle order by ROWID desc limit 1", conn)
+    messages.rename(columns={'ROWID': 'message_id'}, inplace=True)
+    handles.rename(columns={'id': 'phone_number','ROWID': 'handle_id'}, inplace=True)
+    imessage_df = pd.merge(messages[['text', 'handle_id', 'date', 'is_sent', 'message_id']],
+                           handles[['handle_id', 'phone_number']], on='handle_id', how='left')
+
+    for index, row in imessage_df.iterrows():
+        verification_code_text = row['text']
+        if "CoWIN" in verification_code_text:
+            verification_code_text = row['text']
+            otp_text = verification_code_text.split(' ')
+            otp = otp_text[6]
+            return otp[:6]

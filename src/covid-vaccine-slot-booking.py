@@ -10,6 +10,7 @@ from utils import generate_token_OTP, check_and_book, beep, BENEFICIARIES_URL, W
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--token', help='Pass token directly')
+    parser.add_argument('--unattended', help='Unattended OTP for iOS')
     args = parser.parse_args()
 
     filename = 'vaccine-booking-details.json'
@@ -25,6 +26,9 @@ def main():
 
         if args.token:
             token = args.token
+        elif args.unattended:
+            mobile = args.unattended
+            token = generate_token_OTP(mobile, base_request_header, True)
         else:
             mobile = input("Enter the registered mobile number: ")
             token = generate_token_OTP(mobile, base_request_header)
@@ -36,7 +40,10 @@ def main():
             print("\n=================================== Note ===================================\n")
             print(f"Info from perhaps a previous run already exists in {filename} in this directory.")
             print(f"IMPORTANT: If this is your first time running this version of the application, DO NOT USE THE FILE!")
-            try_file = input("Would you like to see the details and confirm to proceed? (y/n Default y): ")
+            if args.unattended:
+                try_file = 'y'
+            else:
+                try_file = input("Would you like to see the details and confirm to proceed? (y/n Default y): ")
             try_file = try_file if try_file else 'y'
 
             if try_file == 'y':
@@ -44,7 +51,10 @@ def main():
                 print("\n================================= Info =================================\n")
                 display_info_dict(collected_details)
 
-                file_acceptable = input("\nProceed with above info? (y/n Default n): ")
+                if args.unattended:
+                    file_acceptable = 'y'
+                else:
+                    file_acceptable = input("\nProceed with above info? (y/n Default n): ")
                 file_acceptable = file_acceptable if file_acceptable else 'n'
 
                 if file_acceptable != 'y':
@@ -58,7 +68,8 @@ def main():
         else:
             collected_details = collect_user_details(request_header)
             save_user_info(filename, collected_details)
-            confirm_and_proceed(collected_details)
+            if args.unattended is None:
+                confirm_and_proceed(collected_details)
 
         info = SimpleNamespace(**collected_details)
 
@@ -87,15 +98,19 @@ def main():
                 print('Token is INVALID.')
                 token_valid = False
 
-                tryOTP = input('Try for a new Token? (y/n Default y): ')
-                if tryOTP.lower() == 'y' or not tryOTP:
-                    if not mobile:
-                        mobile = input("Enter the registered mobile number: ")
-                    token = generate_token_OTP(mobile, base_request_header)
+                if args.unattended:
+                    token = generate_token_OTP(mobile, base_request_header, True)
                     token_valid = True
                 else:
-                    print("Exiting")
-                    os.system("pause")
+                    try_otp = input('Try for a new Token? (y/n Default y): ')
+                    if try_otp.lower() == 'y' or not try_otp:
+                        if not mobile:
+                            mobile = input("Enter the registered mobile number: ")
+                        token = generate_token_OTP(mobile, base_request_header)
+                        token_valid = True
+                    else:
+                        print("Exiting")
+                        os.system("pause")
 
     except Exception as e:
         print(str(e))
