@@ -1,11 +1,20 @@
-import time
 import json
-import sqlite3, pandas as pd
-from pathlib import Path
-from hashlib import sha256
+import pandas as pd
+import re
+import sqlite3
 from collections import Counter
+from hashlib import sha256
+from pathlib import Path
+
+import copy
+import datetime
+import random
+import requests
+import sys
+import tabulate
+import time
 from inputimeout import inputimeout, TimeoutOccurred
-import tabulate, copy, time, datetime, requests, sys, os, random
+
 from captcha import captcha_builder
 
 BOOKING_URL = "https://cdn-api.co-vin.in/api/v2/appointment/schedule"
@@ -715,6 +724,5 @@ def readOTPfromMacOS():
         verification_code_text = row['text']
         if "CoWIN" in verification_code_text:
             verification_code_text = row['text']
-            otp_text = verification_code_text.split(' ')
-            otp = otp_text[6]
-            return otp[:6]
+            otp = re.findall('(\d{6})', verification_code_text)[0]
+            return otp
