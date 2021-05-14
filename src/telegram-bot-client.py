@@ -1,4 +1,7 @@
 import os
+import pprint
+import signal
+import sys
 from telegram.client import Telegram
 from utils import get_saved_user_info, save_user_info
 
@@ -8,11 +11,13 @@ def create_tg_client_config(tg_config_file: str = "tg-config.json"):
     api_hash = input("Enter the Telegram API hash: ")
     phone = input("Enter your mobile number registered with Telegram: ")
     encryption_key = input("Enter database secret key: ")
+    cowin_mobile = input("Enter registered CoWIN mobile number:")
     tg_config = {
         'api_id': api_id,
         'api_hash': api_hash,
         'phone': phone,
-        'encryption_key': encryption_key
+        'encryption_key': encryption_key,
+        'cowin-mobile': cowin_mobile
     }
     save_user_info(tg_config_file, tg_config)
     return tg_config
@@ -27,7 +32,7 @@ def read_tg_client_config(tg_config_file: str = "tg-config.json"):
     return client_details
 
 
-def initialize_tg_client(tg_config_file: str = "tg-config.json"):
+def initialize_tg_client(tg_config_file: str = "tg-config.json") -> Telegram:
     client_config = read_tg_client_config(tg_config_file)
     client = Telegram(
         api_id=client_config.get("api_id"),
@@ -40,19 +45,29 @@ def initialize_tg_client(tg_config_file: str = "tg-config.json"):
 
 def new_message_handler(update):
     # we want to process only text messages
+    pprint.pprint(update)
     message_content = update['message']['content'].get('text', {})
     message_text = message_content.get('text', '').lower()
-
-    if message_text == 'ping':
-        chat_id = update['message']['chat_id']
-        print(f'Ping has been received from {chat_id}')
+    chat_id = update['message']['chat_id']
+    # chat_id -1001462646124() , -1001360446581(U45)
+    search_string = 'Vaccination centers for 18-44 group'
+    if search_string.lower() in message_text:
+        print(f"telegram notified for open vaccine.")
+        cowin_config = read_tg_client_config()
+        os.system('python3 src/covid-vaccine-slot-booking.py --unattended ' + cowin_config.get("cowin-mobile"))
     return
+
+
+def signal_term_handler():
+    sys.exit(0)
 
 
 def main():
     tg_client = initialize_tg_client()
     tg_client.login()
     tg_client.add_message_handler(new_message_handler)
+    result = tg_client.get_chats()
+    result.wait()
     tg_client.idle()
     return
 
